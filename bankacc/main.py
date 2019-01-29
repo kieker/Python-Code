@@ -1,4 +1,36 @@
 from bankaccount import BankAcc
+import mysql.connector
+
+def dbfunc():
+    mydb = mysql.connector.connect(
+        host="sql1.jnb3.host-h.net",
+        user="kieketehht_4",
+        passwd="uVv4MZ4rER6NEfAaKtb8",
+        database="kieketehht_pyt"
+    )
+    try:
+        mycursor = mydb.cursor()
+        mycursor.execute("USE kieketehht_pyt")
+        mycursor.execute("SHOW TABLES")
+        results  = mycursor.fetchall()
+        print("All Tables currently in Database: ",results)
+        results_list = [item[0] for item in results]
+
+        if "users" not in results_list:
+            mycursor.execute("CREATE TABLE users ( id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255),password VARCHAR(255))")
+            print("Users table created")
+        else:
+            print("Users table already exist")
+
+    except Exception as ex:
+        errormessage = "An exception of type {0} occurred. Arguments: \n{1!r}"
+        message = errormessage.format(type(ex).__name__,ex.args)
+        print("There was an issue connecting to your database, please try again later")
+        print(message)
+
+
+
+
 
 
 def choice_validate(value: str):
@@ -8,7 +40,7 @@ def choice_validate(value: str):
 
 
 choices = ("Y", "N")
-
+dbfunc()
 while True:
 
     user_option = input("Hi, would you like to create an account? Y/N: ")

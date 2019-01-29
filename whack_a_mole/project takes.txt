@@ -1,0 +1,4 @@
+Takes from this project:
+ - More detailed class and methods programming
+ - Planning the structure of the game.
+ - Learning how to use the pygame library
