@@ -1,6 +1,7 @@
 from bankaccount import BankAcc
 import mysql.connector
 import tkinter as tk
+#import scrypt
 
 
 
@@ -48,12 +49,14 @@ def all_children(window):
             _list.extend(item.winfo_children())
     return _list
 
-def account_create():
-
+def reset_window():
     widget_list = all_children(win)
     for item in widget_list:
         item.pack_forget()
 
+def account_create():
+
+    reset_window()
     tk.Label(win,text="Please enter the account holder name").pack()
     username = tk.Entry(win)
     username.pack()
@@ -69,16 +72,12 @@ def account_create():
     tk.Button(win,text="Create Account",command=lambda: create_user(username,password,amount)).pack()
 
 def create_user(username,password,amount):
+    account= BankAcc(username,password,amount,mydb)
 
-    mycursor = mydb.cursor()
-    command = "INSERT INTO users(name,password,amount) VALUES('%s','%s','%d')" %(username.get(),password.get(),int(amount.get()))
-    mycursor.execute(command)
-    print(username.get())
-    print(password.get())
-    mydb.commit()
 
 win = tk.Tk()
 win.title("Banking system")
+win.geometry("500x300")
 tk.Label(win,text="Welcome to the Banking system").pack()
 tk.Button(win,text="Login using existing account",width=50).pack()
 tk.Button(win,text="Create a new account",width=50,command=account_create).pack()
@@ -107,7 +106,7 @@ while True:
             amount = int(input("What is the amount that you want to deposit: "))
             while amount < 0:
                 amount = input("Money deposited cannot be negative. Please try again: ")
-            acc1 = BankAcc(name, acc_type, amount)
+            acc1 = BankAcc(name, acc_type, amount,mydb)
 
         else:
             acc1 = BankAcc(name, acc_type, 0)
