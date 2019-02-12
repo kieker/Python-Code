@@ -1,6 +1,7 @@
 import uuid
-import tkinter as tk
 import mysql.connector
+from bcrypt import hashpw, gensalt
+
 
 mydb = mysql.connector.connect(
     host="sql1.jnb3.host-h.net",
@@ -10,49 +11,84 @@ mydb = mysql.connector.connect(
 )
 
 class BankAcc:
-    def __init__(self, name, password, amount):
+    def __init__(self, name, password, amount = 0):
+
+        self.password=password.get()
         try:
-            self.acc_holder = name
+            self.acc_holder = name.get()
             self.acc_num = str(uuid.uuid4())
+            self.amount = 0
+            self.id = 0
+            self.message = " "
+
+            self.password = hashpw(self.password.encode('utf-8'), gensalt())
+
             #self.acc_type = typeacc
 
-            if amount:
-                self.amount = amount
-            else:
-                self.amount = 0
+            if amount is not '' or amount is not None:
+                try:
+                    amount_nr = amount.get()
+                    self.amount = int(amount_nr)
 
-            mycursor = mydb.cursor()
-            check_user = "SELECT id FROM users WHERE name = '%s'" %(name.get())
-            mycursor.execute(check_user)
-            results = mycursor.fetchall()
+                except ValueError:
+                    self.message = "Amount must be a number"
+                    self.account_message()
 
-            if len(results) > 0:
-                user_exists = tk.Label(text="User already exists, please try again")
-                user_exists.pack()
-                self.id = results[0]
-            else:
-                if int(amount.get()) == 0:
-                    amount = 0
+                if self.amount > 0:
+                    pass
+
                 else:
-                    amount = int(amount.get())
+                    self.amount = 0
 
-                command = "INSERT INTO users(name,password,amount) VALUES('%s','%s','%d')" % (name.get(), password.get(), amount)
-                mycursor.execute(command)
+            account = self.select_account()
 
-                mydb.commit()
+            if account:
+                self.message = "User already exists, please try again"
+                self.account_message()
+            else:
+                self.create_account()
+                self.message = "Your user has been created with acc number: "+ str(self.acc_num)
+                self.account_message()
 
-                self.id = mycursor.lastrowid
-
-                user_created = tk.Label(text="Your user has been created with acc number: "+ str(self.acc_num))
-                user_created.pack()
-                # if user_exists in locals():
-                   # user_exists.pack_forget()
 
         except Exception as ex:
-            errormessage = "An exception of type {0} occurred. Arguments: \n{1!r}"
-            message = errormessage.format(type(ex).__name__, ex.args)
-            print("There was an issue connecting to your database, please try again later")
-            print(message)
+            errormessage = "An exception of type {0} occurred. Arguments: \n{1!r}\nThere was and issue connecting to your database, please try again later"
+            self.message = errormessage.format(type(ex).__name__, ex.args)
+
+    def select_account(self):
+        mycursor = mydb.cursor()
+        check_user = "SELECT id FROM users WHERE name = '%s'" % (self.acc_holder)
+        mycursor.execute(check_user)
+        results = mycursor.fetchall()
+
+        if len(results) > 0:
+            self.id = results[0]
+            return True
+        else:
+            return False
+
+    def create_account(self):
+        mycursor = mydb.cursor()
+
+        command = 'INSERT INTO users(name,password,amount) VALUES("%s","%s","%d")' % (
+        self.acc_holder, self.password, self.amount)
+        print(command)
+        mycursor.execute(command)
+        mydb.commit()
+        self.id = mycursor.lastrowid
+
+    def auth_user(self,username,password):
+        mycursor = mydb.cursor()
+        check_user = "SELECT * FROM users WHERE id = '%d'" % (self.id)
+        mycursor.execute(check_user)
+        result = mycursor.fetchall()
+
+        if len(result) > 0:
+            print(result[0])
+        else:
+            print()
+
+        pass
 
     def withdraw(self, amount):
 
@@ -60,27 +96,12 @@ class BankAcc:
         self.amount -= amount
 
         mycursor.execute("UPDATE amount WHERE id = '%d'") %(self.id)
-        return self.amount
+        return str(amount) + " has been withdrawn from the account. " + str(self.amount) + " is available."
 
-    def withdraw_render(self):
-        heading = tk.Label(text="Withdraw money")
-        heading.pack()
 
     def deposit(self, amount):
         self.amount += amount
 
-    def account_ops(win):
-        reset_window(win)
-        heading = tk.Label(text="Account Operations")
-        heading.pack()
-        withdraw = tk.Button(text="Withdraw", command="withdraw_render")
-        withdraw.pack()
-
-        deposit = tk.Button(text="Withdraw", command="deposit_render")
-        deposit.pack()
-
-
-        print("Account operations:")
-        print("1 - Withdraw")
-        print("2 - Deposit ")
-        print("3 - Back")
+    def account_message(self):
+        message = self.message
+        return message
