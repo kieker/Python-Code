@@ -13,7 +13,21 @@ mydb = mysql.connector.connect(
 class BankAcc:
     def __init__(self, name, password, amount = 0):
 
-        self.password=password.get()
+        self.password=password.get() # gets password so that it can be encoded and encrypted later
+        type_amount = isinstance(amount,int)
+        print(type_amount)
+        if type_amount is not True:
+
+            if amount is not '' or amount is not None:
+                try:
+                    amount_nr = amount.get()
+                    self.amount = float(amount_nr)
+
+                except ValueError:
+                    self.message = "Amount deposited must be a number."
+                    self.account_message()
+                    return
+
         try:
             self.acc_holder = name.get()
             self.acc_num = str(uuid.uuid4())
@@ -25,20 +39,11 @@ class BankAcc:
 
             #self.acc_type = typeacc
 
-            if amount is not '' or amount is not None:
-                try:
-                    amount_nr = amount.get()
-                    self.amount = int(amount_nr)
+            if self.amount > 0:
+                pass
 
-                except ValueError:
-                    self.message = "Amount must be a number"
-                    self.account_message()
-
-                if self.amount > 0:
-                    pass
-
-                else:
-                    self.amount = 0
+            else:
+                self.amount = 0
 
             account = self.select_account()
 
@@ -72,7 +77,7 @@ class BankAcc:
 
         command = 'INSERT INTO users(name,password,amount) VALUES("%s","%s","%d")' % (
         self.acc_holder, self.password, self.amount)
-        print(command)
+
         mycursor.execute(command)
         mydb.commit()
         self.id = mycursor.lastrowid
@@ -86,9 +91,11 @@ class BankAcc:
         if len(result) > 0:
             print(result[0])
         else:
-            print()
+            self.message = "no user exists"
+            print("no user exists")
 
-        pass
+
+
 
     def withdraw(self, amount):
 

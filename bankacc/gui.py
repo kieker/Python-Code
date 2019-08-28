@@ -94,7 +94,9 @@ class Gui:
     def login_user(self, username, password):
 
         account = BankAcc(username, password)
+        account.auth_user(username,password)
         account_login = tk.Label(self.win, text=account.account_message()).pack()
+
         return account
 
     def account_ops(self):
