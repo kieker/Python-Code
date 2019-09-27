@@ -28,8 +28,8 @@ class SpotifyRequest:
     def auth_user(self,the_user_id):
         self.user_id = the_user_id
         self.token = util.prompt_for_user_token(the_user_id, 'user-read-playback-state',
-                                                client_id='5da1070f0d344e94ac7ca2a36a977ff8',
-                                                client_secret='523c7930cada4d2fb992728562dccd63',
+                                                client_id='client_key_redacted',
+                                                client_secret='client_secret_redacted',
                                                 redirect_uri='https://www.google.com/')
 
         if self.token:
