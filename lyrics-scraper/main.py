@@ -3,11 +3,22 @@ import requests
 import json
 import spotipy
 import spotipy.util as util
-from spotipy import Spotify
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout,QLineEdit,QLabel
-import os
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout,QLineEdit,QLabel, QScrollArea
+from PyQt5.QtGui import QPixmap, QImage, QPalette,QBrush
+from PyQt5 import QtCore
+import urllib
 
-SPOTIPY_CLIENT_ID = 'client_key_redacted'
+
+
+# TODO: search for only song if song and artist cannot be found
+# TODO: Strip special characters
+# TODO: token handling for when cache expires
+# TODO: Skip track button
+# TODO: Handle collaborations
+
+from spotipy import Spotify
+
+SPOTIPY_CLIENT_ID = 'client_id_redacted'
 SPOTIPY_CLIENT_SECRET = 'client_secret_redacted'
 SPOTIPY_REDIRECT_URI = 'https://google.com/'
 
@@ -28,7 +39,7 @@ class SpotifyRequest:
     def auth_user(self,the_user_id):
         self.user_id = the_user_id
         self.token = util.prompt_for_user_token(the_user_id, 'user-read-playback-state',
-                                                client_id='client_key_redacted',
+                                                client_id='client_id_redacted',
                                                 client_secret='client_secret_redacted',
                                                 redirect_uri='https://www.google.com/')
 
@@ -37,6 +48,7 @@ class SpotifyRequest:
             print("user successfully verified")
             self.status_code = 200
             self.create_handler()
+
             return self.status_code
 
         else:
@@ -52,6 +64,7 @@ class SpotifyRequest:
 
 
     def convert_song_to_object(self, song):
+        #print(json.dumps(song, sort_keys=True, indent=4))
         song_str = json.dumps(song)
         song_obj = json.loads(song_str)
         return song_obj
@@ -63,7 +76,7 @@ class SpotifyRequest:
 
         if old_song == '':
             first_run = True
-            #return current_song, False
+
         curr_song_data = self.convert_song_to_object(curr)
         prev_song_data = self.convert_song_to_object(old_song)
 
@@ -74,37 +87,54 @@ class SpotifyRequest:
         else:
             return curr, False
 
+    def get_album_art(self, song):
+        song_data = self.convert_song_to_object(song)
+
+        album_art = str(song_data["item"]["album"]["images"][1]["url"])
+        print("album art url is : " + album_art)
+
+        return album_art
 
     def get_lyrics(self, song):
+        #print('song is: ' + str(song))
         song_data = self.convert_song_to_object(song)
         song_name = str(song_data[0]["item"]["name"]).lower()
         song_artist = str(song_data[0]["item"]["artists"][0]['name']).capitalize()
 
+        #song_artist = ''.join(e for e in song_artist if e.isalnum())
+        #song_name = ''.join(e for e in song_name if e.isalnum())
+
         song_artist = song_artist.replace(' ', '-')
         song_name = song_name.replace(' ', '-').lower()
-        
-        print(song_name) #for debug purposes
+        song_name = song_name.replace("'", '')
+        song_name = song_name.replace('(', '')
+        song_name = song_name.replace(')', '')
+
+        song_name = song_name.split(" - ")[0]
+
+        print(song_name)
         print(song_artist)
 
         lyrics = []
         scrape_url = 'http://www.genius.com/'+song_artist+'-'+song_name+'-lyrics'
+
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36'}
 
         page_response = requests.get(scrape_url,headers=headers, timeout=10)
-        print("trying to connect")
+        print("trying to connect: "  + scrape_url)
         if page_response.status_code == 200:
             print("connected to site")
             page_content = BeautifulSoup(page_response.content, 'html.parser')
             main_container = page_content.find("div", class_='lyrics')
-            # lyrics_container = main_container.find_all("div", class_="text-center")
             paragraph = main_container.find_all("p")
             lyrics_div = paragraph[0].text
             the_lyrics = lyrics_div.splitlines()
             lyrics = the_lyrics
-            print(lyrics)
+
             return lyrics
         else: print("There was a problem connecting to the site: " + str(page_response.status_code))
-        return "no lyrics found"
+        lyrics.append("No lyrics found at: " + scrape_url)
+        return lyrics
 
     def check_if_playing(self):
         playback = self.spotify_handler.current_user_playing_track()
@@ -123,34 +153,40 @@ class Gui:
         self.user_id = ''
         self.authenticated = False
         self.status_message = ''
+        self.album_art_pic = QWidget()
+        self.scrollArea = QScrollArea()
+
 
 
     def check_auth(self):
         print("checking user account")
-        
         if self.authenticated:
             print("User already authenticated")
             status = self.spotify.status_code
+
             return status
         else:
             user_id = self.get_user()
             print(str(user_id) + " user not authenticated")
             status = self.spotify.status_code
             self.spotify.auth_user(user_id)
-            self.logged_in(self.spotify)
+            self.login_success(self.spotify)
+            #status = self.spotify.create_handler()
+
             return status
-      
 
     def update_lyrics(self, lyrics):
-
         if lyrics:
-            lyrics_arr = lyrics[1:]
+            lyrics_arr = lyrics[:]
 
             lyrics_string = "\n".join(lyrics_arr)
 
+
             self.lyrics.setText(lyrics_string)
             print("lyrics string: " + lyrics_string)
-        self.layout.addWidget(self.lyrics)
+
+        self.scrollArea.setWidget(self.lyrics)
+        self.layout.addWidget(self.scrollArea)
 
     def scrape_for_lyrics(self):
         print("scraping")
@@ -158,6 +194,8 @@ class Gui:
         if playback:
             song, changed = self.spotify.get_current_song_info('')
             song_data = self.spotify.get_current_song_info(song)
+            album_pic = self.spotify.get_album_art(song)
+            self.display_album_art(album_pic)
             lyr = self.spotify.get_lyrics(song_data)
             for i in lyr:
                 print(i)
@@ -166,22 +204,52 @@ class Gui:
                 self.update_lyrics(lyr)
         else:
             print("No song currently playing. Please try again later")
-        
 
+        #TODO: check if song changes
 
-    def logged_in(self, spotifyOb):
+    def login_success(self, spotifyOb):
         playback = spotifyOb.check_if_playing()
         if playback:
             song = spotifyOb.get_current_song_info()
             self.layout.addWidget(self.get_lyrics_button)
 
+    def display_album_art(self,art_url):
 
-    def main_gui(self):
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.100 Safari/537.36'}
+        data = requests.get(art_url,headers=headers, timeout=10)
+
+        print("Data is: " + str(data))
+        data = urllib.request.urlopen(art_url).read()
+
+        palette = QPalette()
+        pixmap = QPixmap()
+        pixmap.loadFromData(data)
+        brush = QBrush(pixmap)
+        palette.setBrush(QPalette.Background, brush)
+
+        self.album_art_pic.setAutoFillBackground(True)
+        self.album_art_pic.setFixedWidth(300)
+        self.album_art_pic.setFixedHeight(300)
+        for i in range(self.layout.count()):
+            if self.layout.itemAt(i).widget() != self.album_art_pic:
+                self.layout.addWidget(self.album_art_pic)
+            #else:
+                #self.layout.itemAt(i).setAlignment(QtCore.Qt.AlignHCenter)
+
+        self.layout.itemAt(5).setAlignment(QtCore.Qt.AlignHCenter)
+        self.album_art_pic.setPalette(palette)
+
+
+        self.layout.update()
+
+    def setup_main_gui(self):
         self.user_id_field= QLineEdit()
         self.layout.addWidget(self.user_id_field)
 
         self.use_acc_button = QPushButton("Use Account")
         self.layout.addWidget(self.use_acc_button)
+
+
 
         self.get_lyrics_button = QPushButton("Get Lyrics")
 
@@ -194,6 +262,7 @@ class Gui:
         self.window.setLayout(self.layout)
 
 
+
     def run_gui(self):
         self.use_acc_button.clicked.connect(self.check_auth)
         self.get_lyrics_button.clicked.connect(self.scrape_for_lyrics)
@@ -202,30 +271,35 @@ class Gui:
 
 
     def get_user(self):
-        self.account = self.user_id_field.text()
-        if self.account:
+        input_text = self.user_id_field.text()
+        if input_text:
+            self.account = input_text
             print("User account: " + self.account)
             return self.account
         else:
-            return '0'
+            return self.account
+
+    def clearscreen(self):
+        pass
 
 
 def display_error_message(ex):
      errormessage = "An exception of type {0} occurred. Arguments: \n{1!r}"
      message = errormessage.format(type(ex).__name__, ex.args)
-     #print("There was an issue with the program, please try again later")
+     print("There was an issue with the program, please try again later")
      print(message)
 
 
 
 #try:
-    # 3nf1gn8sgkpfdknxxch66kp7x - my spotify user id
-    # print(json.dumps(VARIABLE, sort_keys=True, indent=4)) - for copying later on
+    # 3nf1gn8sgkpfdknxxch66kp7x
+    # print(json.dumps(VARIABLE, sort_keys=True, indent=4))
 
 spoofy = SpotifyRequest()
 the_gui = Gui(spoofy)
-the_gui.main_gui()
+the_gui.setup_main_gui()
+user_id = the_gui.get_user()
 the_gui.run_gui()
-print("done")
+
 # except Exception as e:
  #   display_error_message(e)
